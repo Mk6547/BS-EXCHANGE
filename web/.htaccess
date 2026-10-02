@@ -1,0 +1,3 @@
+<FilesMatch "index\.html$">
+  Header set Cache-Control "no-cache, must-revalidate"
+</FilesMatch>
