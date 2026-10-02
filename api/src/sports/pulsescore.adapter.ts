@@ -529,7 +529,8 @@ export class PulseScoreAdapter implements OnModuleInit, OnModuleDestroy {
     // one runner: the line (the number players bet over/under)
     const backs = this.ladder(sel, 'back');
     const lays = this.ladder(sel, 'lay');
-    const line = sel.odds != null ? Number(sel.odds) : (backs[0]?.price ?? null);
+    const oddsLine = sel.odds != null && sel.odds !== '' ? Number(sel.odds) : NaN;
+    const line = Number.isFinite(oddsLine) ? oddsLine : (backs[0]?.price ?? null);
     const status = (sel.suspended === true || sel.isActive === false) ? 'suspended' : 'active';
     const vals = [
       backs[0]?.price ?? null, backs[0]?.size ?? null,
@@ -922,7 +923,7 @@ export class PulseScoreAdapter implements OnModuleInit, OnModuleDestroy {
       // Keep those as Player rather than Fancy.
       if (
         text.includes('PLAYER') ||
-        text.match(/^[A-Z][A-Z .'-]+\s+TOTAL RUNS\s*-\s*\d+\s+OVERS/) ||
+        raw.toUpperCase().match(/^[A-Z][A-Z .'-]+\s+TOTAL RUNS\s*-\s*\d+\s+OVERS/) ||
         text.includes('DISMISSAL METHOD')
       ) return 'player';
     }
@@ -933,18 +934,18 @@ export class PulseScoreAdapter implements OnModuleInit, OnModuleDestroy {
     // PulseScore/Betway frequently sends cricket betting markets as OTHER.
     // Classify by the actual market name, not by canonicalMarket alone.
     const fancyPatterns = [
-      /\\bRUNS?\\b/,
-      /\\bTOTAL\\s+RUNS?\\b/,
-      /\\bOVER\\s+RUNS?\\b/,
-      /\\bOVER\\s+TOTAL\\b/,
-      /\\bDELIVERY\\b.*\\bRUNS?\\b/,
-      /\\bRUN\\s+RANGE\\b/,
-      /\\bODD[\\/ ]EVEN\\b/,
-      /\\bTEAM\\s+TOTAL\\b/,
-      /\\bINNINGS\\s+RUNS?\\b/,
-      /\\bINNINGS\\s+TEAM\\s+TOTAL\\b/,
-      /\\bOVER[_ ]TEAM[_ ]TOTAL\\b/,
-      /\\bFALL\\s+OF\\s+\\d+(?:ST|ND|RD|TH)?\\s+WICKET\\b/
+      /\bRUNS?\b/,
+      /\bTOTAL\s+RUNS?\b/,
+      /\bOVER\s+RUNS?\b/,
+      /\bOVER\s+TOTAL\b/,
+      /\bDELIVERY\b.*\bRUNS?\b/,
+      /\bRUN\s+RANGE\b/,
+      /\bODD[\/ ]EVEN\b/,
+      /\bTEAM\s+TOTAL\b/,
+      /\bINNINGS\s+RUNS?\b/,
+      /\bINNINGS\s+TEAM\s+TOTAL\b/,
+      /\bOVER[_ ]TEAM[_ ]TOTAL\b/,
+      /\bFALL\s+OF\s+\d+(?:ST|ND|RD|TH)?\s+WICKET\b/
     ];
 
     if (fancyPatterns.some((re) => re.test(text))) return 'fancy';

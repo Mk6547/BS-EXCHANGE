@@ -384,12 +384,18 @@ let AdminSportsController = class AdminSportsController {
         const type = ['match_odds', 'bookmaker', 'fancy'].includes(b?.type) ? b.type : 'match_odds';
         if (!b?.name)
             throw new common_1.BadRequestException({ message: 'Give the market a name.' });
+        const runners = (b.runners ?? []).map((r) => ({ ...r, line: lineValue(r?.line, r?.name) }));
+        if (type === 'fancy') {
+            const missing = runners.find((r) => r.line === null);
+            if (missing)
+                throw new common_1.BadRequestException({ message: `Enter the line (a number, e.g. 52) for "${missing.name}".` });
+        }
         await this.ds.query(`INSERT INTO market (id, event_id, type, name, min_stake, max_stake, max_liability, commission_pct, inplay_allowed, sort_order)
        VALUES (?,?,?,?,?,?,?,?,?,?)`, [id, eventId, type, b.name, b.minStake ?? 100, b.maxStake ?? 500000, b.maxLiability ?? null,
             b.commissionPct ?? 0, b.inplayAllowed === false ? 0 : 1, b.sortOrder ?? 0]);
-        for (const [i, r] of (b.runners ?? []).entries()) {
+        for (const [i, r] of runners.entries()) {
             await this.ds.query(`INSERT INTO runner (id, market_id, name, line_value, back_price, lay_price, back_rate, lay_rate, sort_order)
-         VALUES (?,?,?,?,?,?,?,?,?)`, [(0, node_crypto_1.randomUUID)(), id, r.name, r.line ?? null, r.back ?? null, r.lay ?? null,
+         VALUES (?,?,?,?,?,?,?,?,?)`, [(0, node_crypto_1.randomUUID)(), id, r.name, r.line, r.back ?? null, r.lay ?? null,
                 r.backRate ?? null, r.layRate ?? null, i]);
         }
         await this.audit.record({ adminId: req.user.id, action: 'sports.market.create', target: id, metadata: { eventId, type } });
@@ -421,8 +427,9 @@ let AdminSportsController = class AdminSportsController {
     }
     /** Manual prices, for markets the admin runs without a feed. */
     async updateRunner(req, id, b) {
+        const line = lineValue(b.line, b.name ?? 'this selection');
         await this.ds.query(`UPDATE runner SET name = COALESCE(?, name), back_price=?, lay_price=?, back_rate=?, lay_rate=?,
-         line_value=?, status = COALESCE(?, status) WHERE id = ?`, [b.name ?? null, nz(b.back), nz(b.lay), nz(b.backRate), nz(b.layRate), nz(b.line), b.status ?? null, id]);
+         line_value=?, status = COALESCE(?, status) WHERE id = ?`, [b.name ?? null, nz(b.back), nz(b.lay), nz(b.backRate), nz(b.layRate), line, b.status ?? null, id]);
         await this.audit.record({ adminId: req.user.id, action: 'sports.runner.update', target: id, metadata: b });
         return { id };
     }
@@ -878,4 +885,14 @@ function safeJson(s) {
 }
 function nz(v) {
     return v === '' || v === undefined ? null : v;
+}
+/** A runner line must be a number; blank means no line. Rejects text typed into the Line box. */
+function lineValue(v, name) {
+    if (v === '' || v === undefined || v === null)
+        return null;
+    const n = Number(String(v).trim());
+    if (!Number.isFinite(n)) {
+        throw new common_1.BadRequestException({ message: `The line for "${name}" must be a number, e.g. 52. Put the market name in the Name box.` });
+    }
+    return n;
 }
